@@ -1,5 +1,8 @@
+cat > .gitignore <<'EOF'
+.DS_Store
+/nbproject/
 /vendor/
 /node_modules/
 /.env
-.DS_Store
 *.log
+EOF
