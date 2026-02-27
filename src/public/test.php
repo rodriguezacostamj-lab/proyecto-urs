@@ -1,5 +1,7 @@
 <?php
-declare(strict_types=1);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 
 require_once __DIR__ . '/../Domain/Entities/Periodo.php';
 require_once __DIR__ . '/../Domain/Entities/Anexo.php';
@@ -21,38 +23,35 @@ $anexos = [
     new Anexo('20-1','PEREZ','JUAN','SGP','CASA MILITAR','DCA',$enero,300),
     new Anexo('20-2','GOMEZ','ANA','SGP','ASUNTOS PRESIDENCIALES','DCA',$enero,200),
     new Anexo('20-3','LOPEZ','MAR','SGP','ASUNTOS PRESIDENCIALES','DEP X',$enero,150),
-    new Anexo('20-4','SUAREZ','LUIS','VP','CASA MILITAR','DCA',$enero,400),
+    new Anexo('20-4','SUAREZ','LUIS','SGP','GESTION INSTITUCIONAL','DCA',$enero,400),
 ];
+
+
 
 $calc = new CalculadoraURS();
 
-$resultado = $calc->calcularSubsecretariaMes(
+$topes = [
+    'CASA MILITAR' => 400,
+    'ASUNTOS PRESIDENCIALES' => 300,
+    'GESTION INSTITUCIONAL' => 500,
+];
+
+$resultados = $calc->calcularSecretariaMes(
     $anexos,
     'SGP',
-    'ASUNTOS PRESIDENCIALES',
     $enero,
-    300 // tope
+    $topes
 );
-
 echo "<pre>";
-print_r([
-    'consumido' => $resultado->getConsumido(),
-    'tope' => $resultado->getTope(),
-    'ahorro' => $resultado->getAhorroMensual(),
-    'desvio' => $resultado->getDesvio(),
-    'superaTope' => $resultado->getSuperaTope()
-]);
-echo "</pre>";
-
-// Queremos sumar CASA MILITAR dentro de SGP en Enero 2026
-$total = $calc->sumarConsumoSubsecretariaMes(
-    $anexos,
-    'SGP',
-    'ASUNTOS PRESIDENCIALES',
-    $enero
-);
-
-
-echo "<pre>";
-echo "Total SGP - ASUNTOS PRESIDENCIALES - Enero 2026: $total";
+foreach ($resultados as $sub => $r) {
+    echo $sub . "\n";
+    print_r([
+        'consumido' => $r->getConsumido(),
+        'tope' => $r->getTope(),
+        'ahorro' => $r->getAhorroMensual(),
+        'desvio' => $r->getDesvio(),
+        'superaTope' => $r->getSuperaTope()
+    ]);
+    echo "\n";
+}
 echo "</pre>";
