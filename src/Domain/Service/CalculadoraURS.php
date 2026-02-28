@@ -5,19 +5,93 @@ namespace App\Domain\Service;
 use App\Domain\Entities\Anexo;
 use App\Domain\Entities\Periodo;
 use App\Domain\DTO\ResultadoURS;
+use App\Domain\Repository\Interfaces\AsignacionRepository;
+use App\Domain\Repository\Interfaces\TopeRepository;
+use App\Domain\Repository\Interfaces\AnexoRepository;
 
 
-final class CalculadoraURS
-{
-   public function sumarConsumoSubsecretariaMes(
-      array $anexos,
-      string $secretaria,
-      string $subsecretaria,
-      Periodo $periodo
-   ): int {
-      $total = 0;
+final class CalculadoraURS {
 
-      foreach ($anexos as $a) {
+    private ?AsignacionRepository $asignacionRepo = null;
+    private ?TopeRepository $topeRepo = null;
+    private ?AnexoRepository $anexoRepo = null;
+    
+    public function __construct(
+    ?AsignacionRepository $asignacionRepo = null,
+    ?TopeRepository $topeRepo = null,
+    ?AnexoRepository $anexoRepo = null
+) {
+    $this->asignacionRepo = $asignacionRepo;
+    $this->topeRepo = $topeRepo;
+    $this->anexoRepo = $anexoRepo;
+}
+
+public function calcularSubsecretariaMesDesdeRepositorio(
+    string $secretaria,
+    string $subsecretaria,
+    Periodo $periodo
+): ResultadoURS {
+
+    if (!$this->anexoRepo || !$this->topeRepo) {
+        throw new \LogicException("Repositorios no configurados");
+    }
+
+    $anexos = $this->anexoRepo->buscarPorPeriodo($periodo);
+
+    $consumido = 0;
+
+    foreach ($anexos as $a) {
+
+        if ($a->getSecretaria() !== $secretaria) {
+            continue;
+        }
+
+        if ($a->getSubsecretaria() !== $subsecretaria) {
+            continue;
+        }
+
+        $consumido += $a->getCantidadUrs();
+    }
+
+    $topes = $this->topeRepo->buscarPorPeriodo($periodo);
+
+    $tope = 0;
+
+    foreach ($topes as $t) {
+        if ($t->getSecretaria() === $secretaria
+            && $t->getSubsecretaria() === $subsecretaria) {
+
+            $tope = $t->getCantidad();
+            break;
+        }
+    }
+
+    $ahorro = $tope - $consumido;
+    $superaTope = $consumido > $tope;
+    $desvio = $superaTope ? $consumido - $tope : 0;
+
+    return new ResultadoURS(
+        0,
+        $tope,
+        $consumido,
+        $ahorro,
+        $desvio,
+        $superaTope,
+        0,
+        0,
+        0
+    );
+}
+
+    public function sumarConsumoSubsecretariaMes(
+            array $anexos,
+            string $secretaria,
+            string $subsecretaria,
+            Periodo $periodo
+    ): int {
+        $total = 0;
+
+        foreach ($anexos as $a) {
 
          if ($a->getSecretaria() !== $secretaria) {
             continue;
@@ -183,43 +257,43 @@ final class CalculadoraURS
         return $acumulado;
     }
 
-    public function calcularRemanenteAcumuladoHastaPeriodo(
-            Periodo $periodoObjetivo,
-            array $asignadosPorPeriodo,
-            array $topesPorPeriodo
+    public function calcularRemanenteAcumuladoHastaPeriodoDesdeRepositorio(
+            string $secretaria,
+            Periodo $periodoObjetivo
     ): int {
 
-        $anioObjetivo = $periodoObjetivo->getAnio();
-        $mesObjetivo = $periodoObjetivo->getMes();
+        if (!$this->asignacionRepo || !$this->topeRepo) {
+            throw new \LogicException("Repositorios no configurados");
+        }
+
+        $periodos = $this->asignacionRepo->listarPeriodosHasta($periodoObjetivo);
 
         $acumulado = 0;
 
-        foreach ($asignadosPorPeriodo as $periodoKey => $asignado) {
+        foreach ($periodos as $periodo) {
 
-            // Separar clave tipo "2026-3"
-            [$anio, $mes] = explode('-', $periodoKey);
+            $asignacion = $this->asignacionRepo
+                    ->buscarPorPeriodo($periodo, $secretaria);
 
-            $anio = (int) $anio;
-            $mes = (int) $mes;
-
-            // Solo mismo año
-            if ($anio !== $anioObjetivo) {
+            if (!$asignacion) {
                 continue;
             }
 
-            // Solo hasta el mes indicado
-            if ($mes > $mesObjetivo) {
-                continue;
+            $topes = $this->topeRepo->buscarPorPeriodo($periodo);
+
+            $sumaTopes = 0;
+
+            foreach ($topes as $t) {
+                if ($t->getSecretaria() === $secretaria) {
+                    $sumaTopes += $t->getCantidad();
+                }
             }
 
-            $topesMes = $topesPorPeriodo[$periodoKey] ?? [];
+            if ($sumaTopes > $asignacion->getCantidad()) {
+                throw new \DomainException("Topes superan asignado");
+            }
 
-            $remanente = $this->calcularRemanenteMensualSecretaria(
-                    $asignado,
-                    $topesMes
-            );
-
-            $acumulado += $remanente;
+            $acumulado += $asignacion->getCantidad() - $sumaTopes;
         }
 
         return $acumulado;

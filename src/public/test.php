@@ -1,50 +1,72 @@
 <?php
-ini_set('display_errors', '1');
-ini_set('display_startup_errors', '1');
+
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-require_once __DIR__ . '/../Domain/Entities/Periodo.php';
-require_once __DIR__ . '/../Domain/Entities/Anexo.php';
-require_once __DIR__ . '/../Domain/Service/CalculadoraURS.php';
-require_once __DIR__ . '/../Domain/DTO/ResultadoURS.php';
+require_once __DIR__ . '/../autoload.php';
 
+use App\Domain\Service\CalculadoraURS;
 use App\Domain\Entities\Periodo;
 use App\Domain\Entities\Anexo;
-use App\Domain\Service\CalculadoraURS;
+use App\Domain\Entities\Tope;
+use App\Infrastructure\Persistence\Memory\AnexoRepositoryMemory;
+use App\Infrastructure\Persistence\Memory\TopeRepositoryMemory;
 
-
-
-
-// Creamos periodo Enero 2026
+// 1️⃣ Crear periodo
 $enero = new Periodo(2026, 1);
 
-// Creamos datos de prueba (simulan tu anexo)
+// 2️⃣ Crear anexos de prueba
 $anexos = [
-    new Anexo('20-1','PEREZ','JUAN','SGP','CASA MILITAR','DCA',$enero,300),
-    new Anexo('20-2','GOMEZ','ANA','SGP','ASUNTOS PRESIDENCIALES','DCA',$enero,200),
-    new Anexo('20-3','LOPEZ','MAR','SGP','ASUNTOS PRESIDENCIALES','DEP X',$enero,150),
-    new Anexo('20-4','SUAREZ','LUIS','SGP','GESTION INSTITUCIONAL','DCA',$enero,400),
+    new Anexo(
+        '20-12345678-9',
+        'Perez',
+        'Juan',
+        'SGP',
+        'SUB1',
+        'DEP1',
+        $enero,
+        200
+    ),
+    new Anexo(
+        '20-12345678-9',
+        'Perez',
+        'Juan',
+        'SGP',
+        'SUB1',
+        'DEP1',
+        $enero,
+        300
+    ),
+    new Anexo(
+        '20-87654321-0',
+        'Gomez',
+        'Ana',
+        'SGP',
+        'SUB2',
+        'DEP2',
+        $enero,
+        150
+    ),
 ];
 
-
-
+// 3️⃣ Instanciar calculadora
 $calc = new CalculadoraURS();
 
-$topes = [
-    'CASA MILITAR' => 400,
-    'ASUNTOS PRESIDENCIALES' => 300,
-    'GESTION INSTITUCIONAL' => 500,
-];
-
+// 4️⃣ Ejecutar cálculo viejo
 $resultados = $calc->calcularSecretariaMes(
     $anexos,
     'SGP',
     $enero,
-    $topes
+    [
+        'SUB1' => 1000,
+        'SUB2' => 500
+    ]
 );
+
 echo "<pre>";
 foreach ($resultados as $sub => $r) {
-    echo $sub . "\n";
+    echo "Subsecretaria: $sub\n";
     print_r([
         'consumido' => $r->getConsumido(),
         'tope' => $r->getTope(),
@@ -57,33 +79,41 @@ foreach ($resultados as $sub => $r) {
 echo "</pre>";
 
 
-$asignados = [
-    '2026-1' => 700,
-    '2026-2' => 2000,
-    '2026-3' => 1500,
+
+$topesObjetos = [
+    new Tope(
+        Tope::NIVEL_SUBSECRETARIA,
+        1, // ID de SUB1
+        $enero,
+        1000
+    ),
+    new Tope(
+        Tope::NIVEL_SUBSECRETARIA,
+        2, // ID de SUB2
+        $enero,
+        500
+    ),
 ];
 
-$topesPorPeriodo = [
-    '2026-1' => [
-        'CASA MILITAR' => 400,
-        'ASUNTOS PRESIDENCIALES' => 300
-    ],
-    '2026-2' => [
-        'CASA MILITAR' => 500,
-        'ASUNTOS PRESIDENCIALES' => 400
-    ],
-    '2026-3' => [
-        'CASA MILITAR' => 450,
-        'ASUNTOS PRESIDENCIALES' => 350
-    ],
-];
 
-$periodoConsulta = new Periodo(2026, 3);
 
-$acumulado = $calc->calcularRemanenteAcumuladoHastaPeriodo(
-    $periodoConsulta,
-    $asignados,
-    $topesPorPeriodo
-);
+// Repos
+$anexoRepo = new AnexoRepositoryMemory($anexos);
+$topeRepo = new TopeRepositoryMemory($topesObjetos);
 
-echo $acumulado;
+// Calculadora nueva
+$calcNuevo = new CalculadoraURS(null, $topeRepo, $anexoRepo);
+
+// Buscamos consumo de SUB1 usando repos
+$anexosDelPeriodo = $anexoRepo->buscarPorPeriodo($enero);
+
+$consumidoRepo = 0;
+foreach ($anexosDelPeriodo as $a) {
+    if ($a->getSubsecretaria() === 'SUB1') {
+        $consumidoRepo += $a->getCantidadUrs();
+    }
+}
+
+echo "<pre>";
+echo "Consumo SUB1 desde repo: $consumidoRepo\n";
+echo "</pre>";
