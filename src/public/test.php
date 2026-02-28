@@ -55,3 +55,35 @@ foreach ($resultados as $sub => $r) {
     echo "\n";
 }
 echo "</pre>";
+
+
+$asignados = [
+    '2026-1' => 700,
+    '2026-2' => 2000,
+    '2026-3' => 1500,
+];
+
+$topesPorPeriodo = [
+    '2026-1' => [
+        'CASA MILITAR' => 400,
+        'ASUNTOS PRESIDENCIALES' => 300
+    ],
+    '2026-2' => [
+        'CASA MILITAR' => 500,
+        'ASUNTOS PRESIDENCIALES' => 400
+    ],
+    '2026-3' => [
+        'CASA MILITAR' => 450,
+        'ASUNTOS PRESIDENCIALES' => 350
+    ],
+];
+
+$periodoConsulta = new Periodo(2026, 3);
+
+$acumulado = $calc->calcularRemanenteAcumuladoHastaPeriodo(
+    $periodoConsulta,
+    $asignados,
+    $topesPorPeriodo
+);
+
+echo $acumulado;
